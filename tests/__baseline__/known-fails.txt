@@ -14,7 +14,7 @@
 #
 # Rebuilt 2026-11-05 from two identical runs (no flakes) of
 #   cd tests && npx vitest run   (Node 22, no provider credentials, no network to providers)
-# at v0.5.95. 96 entries. The previous 24-entry list was written against the
+# at v0.5.95, then checked against the GitHub Actions run. 95 entries. The previous 24-entry list was written against the
 # upstream /app/ container layout and had drifted: 10 rtk entries now pass
 # (dropped) and ~80 failures were never catalogued.
 
@@ -27,18 +27,20 @@
 tests/unit/security-audit.test.js :: AUDIT-002: API key masking byApiKey object keys should use masked key, not raw key
 
 # ---------------------------------------------------------------------------
-# Introduced after the upstream import (8f20daa, 2026-09-26) — triage (4)
+# Introduced after the upstream import (8f20daa, 2026-09-26) — triage (3)
 # Pass at 8f20daa, fail at v0.5.95. Most look like tests not updated after an
-# intentional change (GPT-6.1 Sol added, Codex refresh lead time, strictProxy
-# hold); cline-free pricing is unverified and may be a real billing bug.
+# intentional change (GPT-6.1 Sol added, Codex refresh lead time);
+# cline-free pricing is unverified and may be a real billing bug.
 # ---------------------------------------------------------------------------
 tests/unit/cline-free-tier-models.test.js :: cline-free namespace pricing still bills the paid twin at its published rate
 tests/unit/codex-gpt6-lite.test.js :: Codex GPT-6 Sol/Luna transport lists gpt-6.1-sol with Codex capabilities
 tests/unit/codex-refresh-token.test.js :: Codex Refresh Token getRefreshLeadMs (early refresh config) should return provider-specific lead time for OAuth providers
-tests/unit/strict-proxy-enforcement.test.js :: strictProxy refuses a direct connection (#4333) does not block a caller that sets strictProxy with no proxy configured
 
 # ---------------------------------------------------------------------------
 # Environment / infrastructure — not a code defect in this repo (8)
+# Not listed: unit/strict-proxy-enforcement fails when HTTPS_PROXY is set in
+# the shell (e.g. a corporate/agent proxy) and passes in CI — unset the proxy
+# env when running the gate locally behind one.
 # cloud/ worker dir absent, optional lowdb not installed, live calls to
 # provider endpoints. saml / cline-auth / kimchi* are written for node:test,
 # not vitest, so vitest never runs them ("No test suite found") — that is a
