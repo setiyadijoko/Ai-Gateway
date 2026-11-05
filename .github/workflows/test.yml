@@ -1,0 +1,82 @@
+name: Tests
+
+# Regression gate: the suite is not all-green (see tests/__baseline__/known-fails.txt),
+# so the job fails only on a test that fails and is NOT in the baseline, or when a
+# registry/alias/OAuth-URL snapshot drifts.
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+# No secrets are used: real provider tests skip without credentials.
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Vitest + baselines
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      # Tests import from src/ and open-sse/, which need the root dependencies.
+      # The root package-lock.json is gitignored upstream, so `npm ci` (and npm
+      # caching) is impossible: this resolves fresh from package.json ranges.
+      - name: Install root dependencies
+        run: npm install --no-audit --no-fund
+
+      # tests/ is an independent package without a lockfile. --legacy-peer-deps
+      # works around an npm 10.9 arborist crash ("reading 'edgesOut'") when
+      # resolving vitest's peer set.
+      - name: Install test dependencies
+        working-directory: tests
+        run: npm install --no-audit --no-fund --legacy-peer-deps
+
+      # Run from tests/ (the documented cwd: several tests resolve ../src from it).
+      # A non-zero exit is expected while known failures exist; the gate below decides.
+      - name: Run vitest
+        working-directory: tests
+        run: |
+          npx vitest run \
+            --reporter=default \
+            --reporter=json --outputFile.json=../vitest-results.json \
+            || echo "vitest exited non-zero; deferring to the regression gate"
+
+      - name: Regression gate (known-fails baseline)
+        run: node tests/__baseline__/verify-no-regression.mjs vitest-results.json
+
+      - name: Provider registry baseline
+        if: ${{ !cancelled() }}
+        run: node tests/__baseline__/verify-providers.mjs
+
+      - name: Alias resolution baseline
+        if: ${{ !cancelled() }}
+        run: node tests/__baseline__/verify-alias.mjs
+
+      - name: OAuth URL baseline
+        if: ${{ !cancelled() }}
+        run: node tests/__baseline__/verify-oauth-urls.mjs
+
+      - name: Upload vitest results
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: vitest-results
+          path: vitest-results.json
+          if-no-files-found: ignore
+          retention-days: 7

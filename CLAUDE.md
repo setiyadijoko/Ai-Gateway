@@ -34,16 +34,24 @@ cd cli && npm run dev  # nodemon watch
 Tests (vitest, in `tests/`, an **independent** ESM package — not wired into root `npm test`):
 ```bash
 npm install                             # ROOT deps first — tests import from src/ which needs `open`, `undici`, etc.
-cd tests && npm install                 # then tests' own deps (vitest) → tests/node_modules (allowed by tests/.gitignore)
-npx vitest run                          # all tests; auto-discovers tests/vitest.config.js
+cd tests && npm install --legacy-peer-deps   # tests' own deps (vitest); the flag dodges an npm 10.9 "edgesOut" crash
+npx vitest run                          # all tests; auto-discovers tests/vitest.config.js — run with cwd = tests/
 npx vitest run unit/capabilities.test.js   # single file (path relative to tests/)
+
+# regression gate (what CI runs — .github/workflows/test.yml):
+npx vitest run --reporter=json --outputFile=../vitest-results.json
+cd .. && node tests/__baseline__/verify-no-regression.mjs vitest-results.json
 ```
 > The committed `tests/package.json` `test` script hardcodes Unix paths (`NODE_PATH=/tmp/node_modules …`) — a shared-install workaround from upstream. On Windows (or anywhere), ignore it and use the `npx vitest` form above; `vitest.config.js` resolves the `open-sse`/`@/` aliases from the repo root regardless of where vitest lives.
 >
-> **The suite is NOT expected to be all-green on a plain checkout.** ~938 pass, ~64 fail. Judge regressions with `tests/__baseline__/verify-no-regression.mjs`, not a raw run. Expected red:
-> - 26 catalogued in `tests/__baseline__/known-fails.txt` (rtk, oauth-cursor-auto-import, translator-request-normalization, …).
-> - `unit/embeddings.cloud.test.js` imports `cloud/src/handlers/embeddings.js` — the `cloud/` worker dir is **not in this repo**, so it always fails here.
-> - `unit/xai-oauth-service.test.js` times out (5s) when the xAI endpoint-discovery fetch isn't reachable/mocked.
+> **The suite is NOT expected to be all-green on a plain checkout.** At v0.5.95: 3158 tests, ~2955 pass, 95 known failures (89 assertions + 6 files that fail to load). Judge regressions with `tests/__baseline__/verify-no-regression.mjs`, not a raw run. Every expected failure is listed, by category, in `tests/__baseline__/known-fails.txt`:
+> - **Security** (1): `usageRepo` keys `byApiKey` stats by the raw API key — triage first.
+> - **Introduced after the upstream import** (3): codex GPT-6.1 Sol, codex refresh lead time, cline-free pricing.
+> - **Environment** (8): `cloud/` worker dir not in this repo, optional `lowdb` missing, live provider endpoints, and `saml`/`cline-auth`/`kimchi*` tests written for `node:test` (vitest never runs them — SAML auth has no CI coverage).
+> - **Inherited from upstream** (83): already failing at the import commit `8f20daa` (kiro thinking budget, opencode-free tool_choice, windsurf URL, …).
+> - `unit/xai-oauth-service.test.js` can time out (5s) if the xAI endpoint-discovery fetch is unreachable; it normally passes, so it is NOT in the baseline — a timeout there trips the gate.
+> - `unit/strict-proxy-enforcement.test.js` fails when `HTTPS_PROXY` is set in your shell; run the gate with proxy env unset if you are behind one.
+> - When a listed test starts passing the gate prints it as stale — delete the line. Never add a line just to go green.
 > - `real/*.real.test.js` make live provider calls — need credentials, skip otherwise.
 - `*.real.test.js` under `tests/translator/real/` make live provider calls — skip unless credentials are set.
 - Regression baselines: `tests/__baseline__/verify-*.mjs` compare against committed snapshots (providers, aliases, OAuth URLs). Run these after touching provider registry / alias logic.
