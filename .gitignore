@@ -101,3 +101,6 @@ graphify-out/*
 .start-dev.ps1
 start-dev-silent.cjs
 debug.log
+
+# vitest JSON report written by the Tests workflow / regression gate
+/vitest-results.json
