@@ -25,20 +25,20 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           persist-credentials: false
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: 22
-          cache: npm
-          cache-dependency-path: package-lock.json
 
       # Tests import from src/ and open-sse/, which need the root dependencies.
+      # The root package-lock.json is gitignored upstream, so `npm ci` (and npm
+      # caching) is impossible: this resolves fresh from package.json ranges.
       - name: Install root dependencies
-        run: npm ci --no-audit --no-fund
+        run: npm install --no-audit --no-fund
 
       # tests/ is an independent package without a lockfile. --legacy-peer-deps
       # works around an npm 10.9 arborist crash ("reading 'edgesOut'") when
